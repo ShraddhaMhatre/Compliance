@@ -28,7 +28,7 @@ and outputs a JSON-formatted compliance report.
   ```bash
   pip install psutil
 
-## Usage
+# Usage
 
 ## Run directly from terminal:
 python compliance_script.py
@@ -57,4 +57,4 @@ python compliance_script.py
 }
 
 ## Notes
-# On Windows, ensure you run the terminal as Administrator for full accuracy.
+## On Windows, ensure you run the terminal as Administrator for full accuracy.
