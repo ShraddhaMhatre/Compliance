@@ -1,20 +1,24 @@
 # Compliance Script for Basic device posture check
 
 ## Purpose
-This Python script performs **basic security posture checks** on a workstation (macOS or Windows).  
-It is designed to simulate a lightweight endpoint compliance or "health check" mechanism before granting access to sensitive systems.
+This Python script performs basic workstation compliance checks on Windows systems.
+It is designed to provide a quick security posture snapshot, for example, before allowing access to sensitive networks or systems.
 
----
+The script automatically gathers:
+System information (OS, version, hostname)
+Security controls status (encryption, EDR, firewall)
+
+and outputs a JSON-formatted compliance report.
+
 
 ## What It Checks
 
-| Check | Description | Implementation |
-|-------|--------------|----------------|
-| **Disk Encryption** | Verifies if full-disk encryption is enabled. | Uses `manage-bde -status` (Windows) or `fdesetup status` (macOS). |
-| **EDR Agent Running** | Ensures a security agent (mocked process) is active. | Looks for a process name like `defender` using `psutil`. |
-| **Firewall Enabled** | Confirms the OS-native firewall is active. | Uses `netsh advfirewall show allprofiles` (Windows) or `defaults read /Library/Preferences/com.apple.alf globalstate` (macOS). |
+| Check               | Description                                                                                     | Implementation                                                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Disk Encryption** | Verifies if **BitLocker full-disk encryption** is enabled on the system drive (`C:`).           | Uses `manage-bde -status` and parses output for encryption %, conversion status, and protection state.                                          |
+| **EDR Agent**       | Confirms whether an **EDR/AV agent** (e.g., CrowdStrike Falcon, Microsoft Defender) is running. | Uses `psutil` to detect known process names (`CSFalconService.exe`, `MsMpEng.exe`, etc.) and falls back to `sc.exe query` for Windows services. |
+| **Firewall**        | Checks whether the **Windows Defender Firewall** is enabled for any profile.                    | Runs `netsh advfirewall show allprofiles` and parses ON/OFF state.                                                                              |
 
----
 
 ## Requirements
 
@@ -27,12 +31,30 @@ It is designed to simulate a lightweight endpoint compliance or "health check" m
 ## Usage
 
 # Run directly from terminal:
-python3 device_posture_check.py
+python compliance_script.py
 
-# Customizing EDR Agent Check (By default, it looks for a process named defender)
-python3 device_posture_check.py --edr process_name="crowdstrike"
+# Example output
+{
+  "system_info": {
+    "os": "Windows",
+    "os_version": "10.0.xxxx",
+    "hostname": "<samplehostname>"
+  },
+  "checks": {
+    "disk_encryption": {
+      "status": "enabled",
+      "details": "C:: 100.0% encrypted; Used Space Only Encrypted; Protection On; Method XTS-AES 128"
+    },
+    "edr_agent": {
+      "status": "running",
+      "service_name": "CSFalconService.exe"
+    },
+    "firewall": {
+      "status": "enabled",
+      "details": "Profiles: ON, ON, ON"
+    }
+  }
+}
 
 ## Notes
-# The EDR agent check is mocked — it only confirms a process is running.
-# The script requires local admin privileges on macOS to read FileVault and firewall settings.
 # On Windows, ensure you run the terminal as Administrator for full accuracy.
