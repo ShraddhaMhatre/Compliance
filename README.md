@@ -30,10 +30,10 @@ and outputs a JSON-formatted compliance report.
 
 ## Usage
 
-# Run directly from terminal:
+## Run directly from terminal:
 python compliance_script.py
 
-# Example output
+## Example output
 {
   "system_info": {
     "os": "Windows",
