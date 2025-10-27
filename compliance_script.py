@@ -21,20 +21,10 @@ import shutil
 import sys
 import ctypes
 
-def is_admin():
-    try: return bool(ctypes.windll.shell32.IsUserAnAdmin())
-    except: return False
 
-def ensure_admin_or_relaunch():
-    if platform.system() != "Windows": print("Windows only."); sys.exit(1)
-    if is_admin(): return
-    rc = ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(f'"{a}"' for a in sys.argv), None, 1)
-    sys.exit(0 if rc and rc > 32 else 1)
-
-def check_bitlocker(drive="C:"):
+def check_bitlocker(drive):
     """
-    Returns:
-      {"status": "enabled|partial|disabled|unknown", "details": "<summary>"}
+    Checks if full disk encryption is enabled or not
     """
     if platform.system() != "Windows":
         return {"status": "unknown", "details": "Windows only."}
@@ -44,7 +34,7 @@ def check_bitlocker(drive="C:"):
     try:
         out = subprocess.check_output(["manage-bde", "-status", drive], text=True, stderr=subprocess.STDOUT)
 
-        # Extract fields (robust to spacing / wording)
+        # Extract fields
         vol_m  = re.search(r"Volume\s+([A-Z]:)", out, re.I)
         pct_m  = re.search(r"Percentage\s+Encrypted\s*:\s*([\d.,]+)\s*%", out, re.I)
         conv_m = re.search(r"Conversion\s+Status\s*:\s*(.+)", out, re.I)
@@ -60,7 +50,12 @@ def check_bitlocker(drive="C:"):
         enabled = (pct >= 100.0) and (prot.lower() == "on")
         partial = (0.0 < pct < 100.0)
 
-        status = "enabled" if enabled else ("partial" if partial else "disabled")
+        status = "disabled"
+        if enabled:
+            status = "enabled"
+        if partial:
+            status = "partial"
+        
         details = f"{vol}: {pct:.1f}% encrypted; {conv}; Protection {prot}; Method {meth}"
 
         return {"status": status, "details": details}
@@ -68,16 +63,9 @@ def check_bitlocker(drive="C:"):
     except subprocess.CalledProcessError as e:
         return {"status": "unknown", "details": f"manage-bde error: {e.returncode}"}
 
-#Working: Check if CrowdStrike is installed.
-def check_edr_agent(process_name="csagent"):
+def check_edr_agent(process_name):
     """
-    Check if an EDR (Endpoint Detection & Response) agent is active.
-
-    Returns:
-        dict: {
-            "status": "running" | "not running",
-            "service_name": "<name or None>"
-        }
+    Check if an EDR agent is active.
     """
     result = {"status": "not running", "service_name": None}
     system = platform.system()
@@ -91,7 +79,7 @@ def check_edr_agent(process_name="csagent"):
     }
     targets = known_processes.get(process_name.lower(), [process_name])
 
-    # --- 1️⃣ Process check ---
+    # Process check
     for proc in psutil.process_iter(attrs=["name"]):
         try:
             name = (proc.info.get("name") or "").lower()
@@ -103,7 +91,7 @@ def check_edr_agent(process_name="csagent"):
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
-    # --- 2️⃣ Windows service check (for csagent / crowdstrike) ---
+    # Windows service check (for csagent / crowdstrike)
     if not found and system == "Windows" and process_name.lower() in {"crowdstrike", "csagent"}:
         for svc in ["csagent", "CSFalconService"]:
             try:
@@ -124,7 +112,6 @@ def check_edr_agent(process_name="csagent"):
 
     return result
 
-#Working: Check if native OS firewall is enabled.
 def check_firewall_status():
     """Check if Windows Defender Firewall is enabled."""
     result = {"status": "unknown", "details": ""}
@@ -140,7 +127,6 @@ def check_firewall_status():
             stderr=subprocess.STDOUT
         )
 
-        # Look for 'State : ON' or 'State        ON'
         states = re.findall(r"State\s*:?\s*(ON|OFF)", output, flags=re.IGNORECASE)
         if states:
             if any(s.upper() == "ON" for s in states):
